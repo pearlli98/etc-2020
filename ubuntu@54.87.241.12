@@ -32,7 +32,6 @@ exchange_hostname = "test-exch-" + team_name if test_mode else prod_exchange_hos
 def connect():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((exchange_hostname, port))
-    s.settimeout(10)
     return s.makefile('rw', 1)
 
 def write_to_exchange(exchange, obj):
@@ -72,13 +71,12 @@ def main():
         # time for every read_from_exchange() response.
         # Since many write messages generate marketdata, this will cause an
         # exponential explosion in pending messages. Please, don't do that!
-        # print("The exchange replied:", log, file=sys.stderr)
+        
+        if log["type"] == 'ack':
+            print("The exchange replied:", log, file=sys.stderr)
 
-        # if log["type"] == 'ack':
-        #     print("The exchange replied:", log, file=sys.stderr)
-
-        # see currently other people's trading prices and place order to match
         if bond(log):
+            # see currently other people's trading prices and place order to match
             if ask_price(log) > 1000:
                 order_id += 1
                 write_to_exchange(exchange, add_bond("BUY", 1, ask_price(log), order_id))
@@ -88,9 +86,9 @@ def main():
                 write_to_exchange(exchange, add_bond("SELL", 1, ask_price(log), order_id))
                 to_buy_flag = True
 
-        # background bond trade
-        if log["type"] == 'fill' and log["symbol"] == "BOND":
+        if log["type"] == 'fill':
             print("The exchange replied:", log, file=sys.stderr)
+            # background bond trade (pennying)
             if not to_buy_flag: #should sell
                 order_id += 1
                 write_to_exchange(exchange, add_bond("SELL", 1, 1001, order_id))
@@ -99,20 +97,6 @@ def main():
                 order_id += 1
                 write_to_exchange(exchange, add_bond("BUY", 1, 999, order_id))
                 buy_flag = False
-
-        if log["type"] == 'fill' and log["symbol"] == "BOND":
-            print("The exchange replied:", log, file=sys.stderr)
-            if not to_buy_flag: #should sell
-                order_id += 1
-                write_to_exchange(exchange, add_bond("SELL", 1, 1001, order_id))
-                buy_flag = True
-            else:
-                order_id += 1
-                write_to_exchange(exchange, add_bond("BUY", 1, 999, order_id))
-                buy_flag = False
-
-        #stock: GS
-
 
         log = read_from_exchange(exchange)
 
